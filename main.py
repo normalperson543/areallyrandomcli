@@ -49,7 +49,7 @@ def print_forum_info(categories: list):
                 print(f"   {forum["description"]}")
         print("\n")
 def get_forum(forum_id):
-    request = requests.get(f"https://scratch.mit.edu/discuss/{forum_id}")
+    request = requests.get(f"https://scratch.mit.edu/discuss/{forum_id}", verify=False)
     req_text = request.text
     soup = BeautifulSoup(req_text, features="html.parser")
     topics = []
@@ -82,7 +82,11 @@ def get_forum(forum_id):
         "forum_name": forum_name,
         "topics": topics
     }
-
+def print_forum(forum):
+    print(f'Current forum: {forum["forum_name"]}\n')
+    for topic in forum["topics"]:
+        print(f"> {topic["name"]}")
+        print(f"  {topic["replies"]}+ replies, {topic["views"]}+ views")
 categories = get_forum_home()
 print_forum_info(categories)
 while True:
@@ -93,5 +97,7 @@ while True:
     except ValueError:
         print("Whoops, that's not a valid forum ID.")
 
-print(get_forum(forum_id))
+forum = get_forum(forum_id)
+print_forum(forum)
+
 
