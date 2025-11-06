@@ -4,7 +4,7 @@ from termcolor import colored, cprint
 import os
 
 def get_forum_home():
-    print(colored("Get forum homepage", "grey"))
+    print(colored("Get forum homepage", "blue"))
     request = requests.get("https://scratch.mit.edu/discuss", verify=False) #because of the stupid BYOD
     req_text = request.text
     soup = BeautifulSoup(req_text, features="html.parser")
@@ -52,7 +52,7 @@ def print_forum_info(categories: list):
                 print(f"   {forum["description"]}")
         print("\n")
 def get_forum(forum_id):
-    print(colored(f"Get forum {forum_id}", "grey"))
+    print(colored(f"Get forum {forum_id}", "blue"))
     request = requests.get(f"https://scratch.mit.edu/discuss/{forum_id}", verify=False)
     req_text = request.text
     soup = BeautifulSoup(req_text, features="html.parser")
@@ -92,13 +92,19 @@ def print_forum(forum):
         print(f"> {colored(topic["name"], "green")} (ID {colored(topic["id"], "blue")})")
         cprint(f"  {topic["replies"]}+ replies, {topic["views"]}+ views", "blue")
 
-def get_topic(topic_id):
-    request = requests.get(f"https://scratch.mit.edu/discuss/topic/{topic_id}")
+def get_topic(topic_id, page = 1):
+    print(colored(f"Get topic {topic_id}", "blue"))
+    request = requests.get(f"https://scratch.mit.edu/discuss/topic/{topic_id}?page={page}")
     req_text = request.text
     soup = BeautifulSoup(req_text, features="html.parser")
     posts = []
     linkst_li = soup.select(".linkst ul li")
-    topic_name = linkst_li[2].text
+    topic_name = linkst_li[2].contents[0].strip().split("» ")[1]
+    pagination = soup.select_one(".pagination")
+    last_page = 1
+    if pagination:
+        last_page = int(pagination.contents[-4].text)
+
     blockposts = soup.select(".blockpost")
     for bp in blockposts:
         friendly_date = bp.select_one(".box .box-head a").text
@@ -115,11 +121,14 @@ def get_topic(topic_id):
         })
     return {
         "name": topic_name,
+        "current_page": int(page),
+        "id": int(topic_id),
+        "pages": last_page,
         "posts": posts
     }
 
 def print_topic(topic):
-    print(f"Current topic: {colored(topic["name"], "white", "on_green")}")
+    print(f"Current topic: {colored(topic["name"], "white", "on_green")} (page {topic["current_page"]} of {topic["pages"]})")
     for post in topic["posts"]:
         print(f"{colored(f"{post["poster"]["username"]}", "green")} {colored(f"({post["friendly_date"]}, #{post["post_index"]}", "blue")})")
         raw_text = post["contents"]
@@ -148,8 +157,8 @@ def print_topic(topic):
         text = text.replace('</em>', "\x1B[0m")
         text = text.replace('</p>', "")
         text = text.replace('<span>', "")
-        text = text.replace('<a href="', " ") #remove link tag (but leave a space)
-        text = text.replace('">', "") #mmm love jank
+        text = text.replace('<a href="', "") #remove link tag
+        text = text.replace('">', " ") #mmm love jank
         text = text.replace('</a>', "")
         text = text
         print(text)
@@ -158,8 +167,7 @@ def print_topic(topic):
 def accept_user_input():
     answer = input("? ")
     command_split = answer.split(" ")
-    global current_page
-    global previous_forum
+    global current_page, previous_forum, topic, forum, categories
     if command_split[0] == "of":
         try:
             forum_id = int(command_split[1])
@@ -185,23 +193,60 @@ def accept_user_input():
             return
     if command_split[0] == "h":
         categories = get_forum_home()
+        previous_forum = 0
         current_page = "h"
         os.system("clear")
         print_forum_info(categories)
         return
-    if command_split[0] == "b":
+    if command_split[0] == "bb":
         if current_page == "t":
-            forum = get_forum(previous_forum)
-            os.system("clear")
-            current_page = "f"
-            print_forum(forum)
-            return
+            if previous_forum == 0:
+                #go home
+                categories = get_forum_home()
+                current_page = "h"
+                os.system("clear")
+                print_forum_info(categories)
+                return
+            else:
+                #go to that forum.
+                forum = get_forum(previous_forum)
+                os.system("clear")
+                current_page = "f"
+                previous_forum = previous_forum
+                print_forum(forum)
+                return
         if current_page == "f":
+            # go home
             categories = get_forum_home()
             current_page = "h"
             os.system("clear")
             print_forum_info(categories)
             return
+        print("Nothing to go back to!")
+        return
+    if command_split[0] == "n":
+        if current_page == "t":
+            if topic["current_page"] != topic["pages"]:
+                breakpoint()
+                topic = get_topic(topic["id"], topic["current_page"] + 1)
+                os.system("clear")
+                print_topic(topic)
+                return
+            print("This is the last page.")
+            return
+        print("You need to be a topic or forum to go to the next page.")
+        return
+    if command_split[0] == "b":
+        if current_page == "t":
+            if topic["current_page"] != 1:
+                topic = get_topic(topic["id"], topic["current_page"] - 1)
+                os.system("clear")
+                print_topic(topic)
+                return
+            print("This is the first page.")
+            return
+        print("You need to be a topic or forum to go back a page.")
+        return
     try:
         id = int(command_split[0])
         if current_page == "h":
@@ -226,6 +271,9 @@ os.system("clear")
 current_page = "h"
 previous_forum = 0
 print_forum_info(categories)
+topic = {}
+forum = {}
+categories = {}
 while True:
     accept_user_input()
 
