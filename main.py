@@ -86,11 +86,19 @@ def get_forum(forum_id, page = 1):
         topic_replies = int(topic_replies)
         topic_views = int(topic_views)
 
+        sticky = False
+        if tr.select_one(".isticky"):
+            sticky = True
+        closed = False
+        if tr.select_one(".iclosed"):
+            closed = True
         topics.append({
             "id": topic_id,
             "name": topic_name,
             "replies": topic_replies,
-            "views": topic_views
+            "views": topic_views,
+            "closed": closed,
+            "sticky": sticky
         })
     return {
         "forum_name": forum_name,
@@ -102,7 +110,7 @@ def get_forum(forum_id, page = 1):
 def print_forum(forum):
     print(f'Current forum: {colored(forum["forum_name"], "white", "on_green")} {colored(f"(page {forum["current_page"]} of {forum["pages"]})", "blue")}\n')
     for topic in forum["topics"]:
-        print(f"> (#{forum["topics"].index(topic) + 1}) {colored(topic["name"], "green")} (ID {colored(topic["id"], "blue")})")
+        print(f"> (#{forum["topics"].index(topic) + 1}) {colored(topic["name"], "green")} (ID {colored(topic["id"], "blue")}) {colored("(Sticky)", "black", "on_yellow") if topic["sticky"] else ""} {colored("Open", "white", "on_green") if not topic["closed"] else colored("Closed", "white", "on_red")}")
         cprint(f"  {topic["replies"]}+ replies, {topic["views"]}+ views", "blue")
 
 def get_topic(topic_id, page = 1):
@@ -112,6 +120,15 @@ def get_topic(topic_id, page = 1):
     soup = BeautifulSoup(req_text, features="html.parser")
     posts = []
     linkst_li = soup.select(".linkst ul li")
+    if not linkst_li:
+        return {
+            "name": "",
+            "current_page": 0,
+            "id": 0,
+            "pages": 0,
+            "posts": [],
+            "closed": False
+        }
     topic_name = linkst_li[2].contents[0].strip().split("» ")[1]
     pagination = soup.select_one(".pagination")
     last_page = 1
@@ -145,6 +162,10 @@ def get_topic(topic_id, page = 1):
     }
 
 def print_topic(topic):
+    if topic["id"] == 0:
+        cprint("Warning: The topic may not exist or the forums are down.", "white", "on_red")
+        print("Please try again later.")
+        return
     print(f"Current topic: {colored(topic["name"], "white", "on_green")} (page {topic["current_page"]} of {topic["pages"]})")
     if topic["closed"]:
         cprint("Topic CLOSED\n", "red")
