@@ -190,12 +190,14 @@ def get_topic(topic_id, page=1):
     blockposts = soup.select(".blockpost")
     for bp in blockposts:
         friendly_date = bp.select_one(".box .box-head a").text
+        id = int(bp.select_one(".box .box-head a").get("href").split("/discuss/post/")[1].split("/")[0])
         poster_username = bp.select_one(".username").text
         poster_status = bp.select_one(".postleft dl").contents[4].strip()
         poster_post_count = bp.select_one(".postleft dl").contents[6].strip().split(" post")[0]
         contents = bp.select_one(".post_body_html")
         post_index = int(bp.select_one(".box .box-head .conr").text[1:])
         posts.append({
+            "id": id,
             "post_index": post_index,
             "friendly_date": friendly_date,
             "poster": {
@@ -228,7 +230,7 @@ def print_topic(topic):
         cprint("Topic OPEN\n", "green")
     for post in topic["posts"]:
         print(
-            f"{colored(f"{post["poster"]["username"]}", "green")} ({colored("Scratcher", "cyan") if post["poster"]["status"] == "Scratcher" else ""}{colored("New Scratcher", "red") if post["poster"]["status"] == "New Scratcher" else ""}{colored("Teacher", "orange") if post["poster"]["status"] == "Teacher" else ""}{colored("ST", "magenta") if post["poster"]["status"] == "Scratch Team" else ""}{colored("Mod", "magenta") if post["poster"]["status"] == "Forum Moderator" else ""}, {colored(post["poster"]["post_count_string"], "blue")} posts) {colored(f"({post["friendly_date"]}, #{post["post_index"]}", "blue")})")
+            f"{colored(f"{post["poster"]["username"]}", "green")} ({colored("Scratcher", "cyan") if post["poster"]["status"] == "Scratcher" else ""}{colored("New Scratcher", "red") if post["poster"]["status"] == "New Scratcher" else ""}{colored("Teacher", "orange") if post["poster"]["status"] == "Teacher" else ""}{colored("ST", "magenta") if post["poster"]["status"] == "Scratch Team" else ""}{colored("Mod", "magenta") if post["poster"]["status"] == "Forum Moderator" else ""}, {colored(post["poster"]["post_count_string"], "blue")} posts) {colored(f"({post["friendly_date"]}, #{post["post_index"]}, ID {post["id"]}", "blue")})")
         raw_text = post["contents"]
         text = raw_text.replace("<br/>", "\n")
         text = text.replace('<pre class="blocks">', "")
@@ -391,6 +393,19 @@ def accept_user_input():
         return
     if command_split[0] == "o":
         if current_page == "t":
+            if len(command_split) > 1 and command_split[1]:
+                post_index = 0
+                try:
+                    post_index = int(command_split[1])
+                except ValueError:
+                    print("That is not a valid post index.")
+                    return
+                if post_index < 1 or post_index > len(topic["posts"]) - 1:
+                    print("That is not a valid post index.")
+                    return
+                cprint("Opening the post in the browser.", "blue")
+                webbrowser.open(f"https://scratch.mit.edu/discuss/post/{topic["posts"][post_index - 1]["id"]}")
+                return
             cprint("Opening in the browser.", "blue")
             webbrowser.open(f"https://scratch.mit.edu/discuss/topic/{topic["id"]}")
             return
@@ -467,6 +482,9 @@ args = sys.argv
 if len(args) > 1:
     if args[1] == "gh":
         home = get_forum_home()
+        if args[3] and args[3] == "raw":
+            print(home)
+            exit()
         print_forum_info(home)
         exit()
     if args[1] == "gt":
@@ -476,9 +494,12 @@ if len(args) > 1:
         try:
             id = int(args[2])
         except ValueError:
-            cprint("Error: Please speify a valid topic ID.", "red")
+            cprint("Error: Please specify a valid topic ID.", "red")
             exit(1)
         topic = get_topic(id)
+        if args[3] and args[3] == "raw":
+            print(topic)
+            exit()
         print_topic(topic)
         exit()
     if args[1] == "gf":
@@ -488,9 +509,12 @@ if len(args) > 1:
         try:
             id = int(args[2])
         except ValueError:
-            cprint("Error: Please speify a valid forum ID.", "red")
+            cprint("Error: Please specify a valid forum ID.", "red")
             exit(1)
         forum = get_forum(id)
+        if args[3] and args[3] == "raw":
+            print(forum)
+            exit()
         print_forum(forum)
         exit()
 categories = get_forum_home()
