@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from termcolor import colored, cprint
 import os
 import webbrowser
+import sys
 
 def get_forum_home():
     print(colored("Get forum homepage", "blue"))
@@ -68,6 +69,14 @@ def get_forum(forum_id, page = 1):
     if pagination:
         last_page = int(pagination.contents[-4].text)
     vf_soup = soup.select_one("#vf")
+    if not vf_soup:
+        return {
+            "forum_name": "",
+            "id": 0,
+            "current_page": 0,
+            "pages": 0,
+            "topics": []
+        }
     forum_name = vf_soup.select_one(".box .box-head h4 span").text
     topic_trs = soup.select("tr")
     topic_trs.pop(0)
@@ -108,6 +117,10 @@ def get_forum(forum_id, page = 1):
         "topics": topics
     }
 def print_forum(forum):
+    if forum["id"] == 0:
+        cprint("Warning: This forum could not be fetched.", "white", "on_red")
+        print("This could be due to a nonexistent forum or the forums are down. Please try again later.")
+        return
     print(f'Current forum: {colored(forum["forum_name"], "white", "on_green")} {colored(f"(page {forum["current_page"]} of {forum["pages"]})", "blue")}\n')
     for topic in forum["topics"]:
         print(f"> (#{forum["topics"].index(topic) + 1}) {colored(topic["name"], "green")} (ID {colored(topic["id"], "blue")}) {colored("(Sticky)", "black", "on_yellow") if topic["sticky"] else ""} {colored("Open", "white", "on_green") if not topic["closed"] else colored("Closed", "white", "on_red")}")
@@ -175,6 +188,8 @@ def print_topic(topic):
         print(f"{colored(f"{post["poster"]["username"]}", "green")} {colored(f"({post["friendly_date"]}, #{post["post_index"]}", "blue")})")
         raw_text = post["contents"]
         text = raw_text.replace("<br/>", "\n")
+        text = text.replace('<pre class="blocks">', "")
+        text = text.replace('</pre>', "")
         text = text.replace("</br>", "\n")
         text = text.replace("<br>", "\n")
         text = text.replace('<div class="post_body_html">', "")
@@ -185,7 +200,27 @@ def print_topic(topic):
         text = text.replace('<p class="bb-quote-author">', "")  # unsupported
         text = text.replace('<ul>', "")  # unsupported
         text = text.replace('</ul>', "")  # unsupported
+
+        # Emoji support
+
+        R2_SMILES_URLS = ["//cdn.scratch.mit.edu/scratchr2/static/__5b3e40ec58a840b41702360e9891321b__/djangobb_forum/img/smilies", "//cdn.scratch.mit.edu/scratchr2/static/__35b9adb704d6d778f00a893a1b104339__/djangobb_forum/img/smilies"]
+        for url in R2_SMILES_URLS:
+            text = text.replace(f'<img src="{url}/big_smile.png">', ":D")
+            text = text.replace(f'<img src="{url}/mad.png">', ":mad:")
+            text = text.replace(f'<img src="{url}/smile.png">', ":)")
+            text = text.replace(f'<img src="{url}/neutral.png">', ":|")
+            text = text.replace(f'<img src="{url}/sad.png">', ":(")
+            text = text.replace(f'<img src="{url}/big_smile.png">', ":D")
+            text = text.replace(f'<img src="{url}/yikes.png">', ":o")
+            text = text.replace(f'<img src="{url}/wink.png">', ";)")
+            text = text.replace(f'<img src="{url}/hmm.png">', ":/")
+            text = text.replace(f'<img src="{url}/tongue.png">', ":P")
+            text = text.replace(f'<img src="{url}/lol.png">', ":lol:")
+            text = text.replace(f'<img src="{url}/roll.png">', ":rolleyes:")
+            text = text.replace(f'<img src="{url}/cool.png">', ":cool:")
+
         text = text.replace('<img src="', "")  # just give the link
+        text = text.replace("</img>", "")
         text = text.replace('"/>', "")  # just give the link
         text = text.replace('<blockquote>', "")  # unsupported (for now)
         text = text.replace('</blockquote>', "\n")
@@ -270,6 +305,7 @@ def accept_user_input():
         if current_page == "t":
             if topic["current_page"] != topic["pages"]:
                 topic = get_topic(topic["id"], topic["current_page"] + 1)
+                current_page = "t"
                 os.system("clear")
                 print_topic(topic)
                 return
@@ -278,6 +314,7 @@ def accept_user_input():
         if current_page == "f":
             if forum["current_page"] != forum["pages"]:
                 forum = get_forum(forum["id"], forum["current_page"] + 1)
+                current_page = "f"
                 os.system("clear")
                 print_forum(forum)
                 return
@@ -289,6 +326,7 @@ def accept_user_input():
         if current_page == "t":
             if topic["current_page"] != 1:
                 topic = get_topic(topic["id"], topic["current_page"] - 1)
+                current_page = "t"
                 os.system("clear")
                 print_topic(topic)
                 return
@@ -297,6 +335,7 @@ def accept_user_input():
         if current_page == "f":
             if forum["current_page"] != 1:
                 forum = get_forum(forum["id"], forum["current_page"] - 1)
+                current_page = "f"
                 os.system('clear')
                 print_forum(forum)
                 return
@@ -312,9 +351,11 @@ def accept_user_input():
         if current_page == "f":
             cprint("Opening in the browser.", "blue")
             webbrowser.open(f"https://scratch.mit.edu/discuss/{forum["id"]}")
+            return
         if current_page == "h":
             cprint("Opening in the browser.", "blue")
             webbrowser.open(f"https://scratch.mit.edu/discuss")
+            return
     if command_split[0] == "p":
         try:
             page = int(command_split[1])
@@ -324,6 +365,7 @@ def accept_user_input():
         if current_page == "t":
             if page >= 1 and page <= topic["pages"]:
                 topic = get_topic(topic["id"], page)
+                current_page = "t"
                 os.system("clear")
                 print_topic(topic)
                 return
@@ -332,6 +374,7 @@ def accept_user_input():
         if current_page == "f":
             if page >= 1 and page <= forum["pages"]:
                 forum = get_forum(forum["id"], page)
+                current_page = "f"
                 os.system('clear')
                 print_forum(forum)
                 return
@@ -346,8 +389,9 @@ def accept_user_input():
             print("That is not a valid index.")
             return
         try:
-            topic_id = forum["topics"][index_to_get + 1]["id"]
+            topic_id = forum["topics"][index_to_get - 1]["id"]
             topic = get_topic(topic_id)
+            current_page = "t"
             os.system("clear")
             print_topic(topic)
             return
@@ -373,6 +417,36 @@ def accept_user_input():
         pass
 
 
+args = sys.argv
+if len(args) > 1:
+    if args[1] == "gh":
+        home = get_forum_home()
+        print_forum_info(home)
+        exit()
+    if args[1] == "gt":
+        if not args[2]:
+            cprint("Error: You need to specify the topic ID.", "red")
+            exit(1)
+        try:
+            id = int(args[2])
+        except ValueError:
+            cprint("Error: Please speify a valid topic ID.", "red")
+            exit(1)
+        topic = get_topic(id)
+        print_topic(topic)
+        exit()
+    if args[1] == "gf":
+        if not args[2]:
+            cprint("Error: You need to specify the forum ID.", "red")
+            exit(1)
+        try:
+            id = int(args[2])
+        except ValueError:
+            cprint("Error: Please speify a valid forum ID.", "red")
+            exit(1)
+        forum = get_forum(id)
+        print_forum(forum)
+        exit()
 categories = get_forum_home()
 os.system("clear")
 current_page = "h"
