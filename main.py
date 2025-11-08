@@ -199,6 +199,7 @@ def get_topic(topic_id, page=1, suppress_request_msg = False):
         poster_post_count = bp.select_one(".postleft dl").contents[6].strip().split(" post")[0]
         contents = bp.select_one(".post_body_html")
         post_index = int(bp.select_one(".box .box-head .conr").text[1:])
+        postsignature = bp.select_one(".postsignature")
         posts.append({
             "id": id,
             "post_index": post_index,
@@ -206,7 +207,8 @@ def get_topic(topic_id, page=1, suppress_request_msg = False):
             "poster": {
                 "username": poster_username,
                 "status": poster_status,
-                "post_count_string": poster_post_count
+                "post_count_string": poster_post_count,
+                "signature": str(postsignature)
             },
             "contents": str(contents)
         })
@@ -220,6 +222,61 @@ def get_topic(topic_id, page=1, suppress_request_msg = False):
     }
 
 
+def preproc_text(text):
+    text = text.replace("<br/>", "\n")
+    text = text.replace('<pre class="blocks">', "")
+    text = text.replace('</pre>', "")
+    text = text.replace("</br>", "\n")
+    text = text.replace("<br>", "\n")
+    text = text.replace('<div class="post_body_html">', "")
+    text = text.replace('</div>', "")
+    text = text.replace('<div style="text-align:center;">', "")  # unsupported
+    text = text.replace('<span class="bb-big">', "")  # unsupported
+    text = text.replace('<span class="bb-small">', "")  # unsupported
+    text = text.replace('<p class="bb-quote-author">', "")  # unsupported
+    text = text.replace('<ul>', "")  # unsupported
+    text = text.replace('</ul>', "")  # unsupported
+
+    # Emoji support
+
+    R2_SMILES_URLS = [
+        "//cdn.scratch.mit.edu/scratchr2/static/__5b3e40ec58a840b41702360e9891321b__/djangobb_forum/img/smilies",
+        "//cdn.scratch.mit.edu/scratchr2/static/__35b9adb704d6d778f00a893a1b104339__/djangobb_forum/img/smilies"]
+    for url in R2_SMILES_URLS:
+        text = text.replace(f'<img src="{url}/big_smile.png">', ":D")
+        text = text.replace(f'<img src="{url}/mad.png">', ":mad:")
+        text = text.replace(f'<img src="{url}/smile.png">', ":)")
+        text = text.replace(f'<img src="{url}/neutral.png">', ":|")
+        text = text.replace(f'<img src="{url}/sad.png">', ":(")
+        text = text.replace(f'<img src="{url}/big_smile.png">', ":D")
+        text = text.replace(f'<img src="{url}/yikes.png">', ":o")
+        text = text.replace(f'<img src="{url}/wink.png">', ";)")
+        text = text.replace(f'<img src="{url}/hmm.png">', ":/")
+        text = text.replace(f'<img src="{url}/tongue.png">', ":P")
+        text = text.replace(f'<img src="{url}/lol.png">', ":lol:")
+        text = text.replace(f'<img src="{url}/roll.png">', ":rolleyes:")
+        text = text.replace(f'<img src="{url}/cool.png">', ":cool:")
+
+    text = text.replace('<img src="', "")  # just give the link
+    text = text.replace("</img>", "")
+    text = text.replace('"/>', "")  # just give the link
+    text = text.replace('<blockquote>', "")  # unsupported (for now)
+    text = text.replace('</blockquote>', "\n")
+    text = text.replace('<li>', "* ")  # bulleted stuff will be replaced with a dot
+    text = text.replace('</li>', "")
+    text = text.replace('<span class="color:">', "")  # for now...
+    text = text.replace('<span class="bb-bold">', "\033[1m")
+    text = text.replace('<span class="bb-underline">', "\033[4m")
+    text = text.replace('<span class="bb-italic">', "\x1B[3m")
+    text = text.replace('<em>', "\x1B[3m")  # unsupported
+    text = text.replace('</span>', "\033[0m\x1B[0m")
+    text = text.replace('</em>', "\x1B[0m")
+    text = text.replace('</p>', "")
+    text = text.replace('<span>', "")
+    text = text.replace('<a href="', "")  # remove link tag
+    text = text.replace('">', " ")  # mmm love jank
+    text = text.replace('</a>', "")
+    return text
 def print_topic(topic):
     if topic["id"] == 0:
         cprint("Warning: The topic may not exist or the forums are down.", "white", "on_red")
@@ -235,63 +292,15 @@ def print_topic(topic):
         print(
             f"{colored(f"{post["poster"]["username"]}", "green")} ({colored("Scratcher", "cyan") if post["poster"]["status"] == "Scratcher" else ""}{colored("New Scratcher", "red") if post["poster"]["status"] == "New Scratcher" else ""}{colored("Teacher", "orange") if post["poster"]["status"] == "Teacher" else ""}{colored("ST", "magenta") if post["poster"]["status"] == "Scratch Team" else ""}{colored("Mod", "magenta") if post["poster"]["status"] == "Forum Moderator" else ""}, {colored(post["poster"]["post_count_string"], "blue")} posts) {colored(f"({post["friendly_date"]}, #{post["post_index"]}, ID {post["id"]}", "blue")})")
         raw_text = post["contents"]
-        text = raw_text.replace("<br/>", "\n")
-        text = text.replace('<pre class="blocks">', "")
-        text = text.replace('</pre>', "")
-        text = text.replace("</br>", "\n")
-        text = text.replace("<br>", "\n")
-        text = text.replace('<div class="post_body_html">', "")
-        text = text.replace('</div>', "")
-        text = text.replace('<div style="text-align:center;">', "")  # unsupported
-        text = text.replace('<span class="bb-big">', "")  # unsupported
-        text = text.replace('<span class="bb-small">', "")  # unsupported
-        text = text.replace('<p class="bb-quote-author">', "")  # unsupported
-        text = text.replace('<ul>', "")  # unsupported
-        text = text.replace('</ul>', "")  # unsupported
-
-        # Emoji support
-
-        R2_SMILES_URLS = [
-            "//cdn.scratch.mit.edu/scratchr2/static/__5b3e40ec58a840b41702360e9891321b__/djangobb_forum/img/smilies",
-            "//cdn.scratch.mit.edu/scratchr2/static/__35b9adb704d6d778f00a893a1b104339__/djangobb_forum/img/smilies"]
-        for url in R2_SMILES_URLS:
-            text = text.replace(f'<img src="{url}/big_smile.png">', ":D")
-            text = text.replace(f'<img src="{url}/mad.png">', ":mad:")
-            text = text.replace(f'<img src="{url}/smile.png">', ":)")
-            text = text.replace(f'<img src="{url}/neutral.png">', ":|")
-            text = text.replace(f'<img src="{url}/sad.png">', ":(")
-            text = text.replace(f'<img src="{url}/big_smile.png">', ":D")
-            text = text.replace(f'<img src="{url}/yikes.png">', ":o")
-            text = text.replace(f'<img src="{url}/wink.png">', ";)")
-            text = text.replace(f'<img src="{url}/hmm.png">', ":/")
-            text = text.replace(f'<img src="{url}/tongue.png">', ":P")
-            text = text.replace(f'<img src="{url}/lol.png">', ":lol:")
-            text = text.replace(f'<img src="{url}/roll.png">', ":rolleyes:")
-            text = text.replace(f'<img src="{url}/cool.png">', ":cool:")
-
-        text = text.replace('<img src="', "")  # just give the link
-        text = text.replace("</img>", "")
-        text = text.replace('"/>', "")  # just give the link
-        text = text.replace('<blockquote>', "")  # unsupported (for now)
-        text = text.replace('</blockquote>', "\n")
-        text = text.replace('<li>', "* ")  # bulleted stuff will be replaced with a dot
-        text = text.replace('</li>', "")
-        text = text.replace('<span class="bb-bold">', "\033[1m")
-        text = text.replace('<span class="bb-underline">', "\033[4m")
-        text = text.replace('<span class="bb-italic">', "\x1B[3m")
-        text = text.replace('<em>', "\x1B[3m")  # unsupported
-        text = text.replace('</span>', "\033[0m\x1B[0m")
-        text = text.replace('</em>', "\x1B[0m")
-        text = text.replace('</p>', "")
-        text = text.replace('<span>', "")
-        text = text.replace('<a href="', "")  # remove link tag
-        text = text.replace('">', " ")  # mmm love jank
-        text = text.replace('</a>', "")
-        text = text
+        text = preproc_text(raw_text)
         print(text)
         print("\n")
-
-
+def print_sig(topic, post_index):
+    post = topic["posts"][post_index]
+    raw_sig = post["poster"]["signature"]
+    sig = preproc_text(raw_sig)
+    print(sig)
+    print("\n")
 def accept_user_input():
     answer = input("? ")
     command_split = answer.split(" ")
@@ -446,6 +455,17 @@ def accept_user_input():
             return
         print("You need to be a topic or forum to jump pages.")
         return
+    if command_split[0] == "s" and current_page == "t":
+        post_index = 0
+        try:
+            post_index = int(command_split[1])
+        except ValueError:
+            print("That is not a valid post index.")
+            return
+        if post_index < 1 or post_index > len(topic["posts"]) - 1:
+            print("That is not a valid post index.")
+            return
+        print_sig(topic, post_index)
     if command_split[0].find("#") == 0 and current_page == "f":
         try:
             index_to_get = int(command_split[0].split("#")[1])
