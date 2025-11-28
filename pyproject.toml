@@ -1,6 +1,6 @@
 [project]
 name = "areallyrandomcli_normalperson543"
-version = "0.0.5"
+version = "0.0.6"
 authors = [
   { name="normalperson543", email="octotwelve@hackclub.app" },
 ]
